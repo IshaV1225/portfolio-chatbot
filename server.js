@@ -1,59 +1,40 @@
-require("dotenv").config();
-const express = require("express");
-const axios = require("axios");
-const cheerio = require("cheerio");
-const cors = require("cors");
+require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
+const { OpenAI } = require('openai');
 
 const app = express();
-app.use(express.json());
+const port = process.env.PORT || 3000;
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
 app.use(cors());
+app.use(express.json());
 
-const PORT = process.env.PORT || 3000;
-const WEBSITE_URL = "https://ishav1225.github.io/Isha-Verma-Portfolio/"; 
-
-// Function to scrape and extract text from the portfolio website
-async function fetchPortfolioContent() {
-    try {
-        const { data } = await axios.get(WEBSITE_URL);
-        const $ = cheerio.load(data);
-
-        let text = $("body").text().replace(/\s+/g, " ").trim();
-        return text.substring(0, 4000); // OpenAI token limit
-    } catch (error) {
-        console.error("Error fetching website:", error);
-        return "Portfolio content could not be retrieved.";
-    }
-}
-
-// Chatbot API route
-app.post("/chat", async (req, res) => {
+app.post('/chat', async (req, res) => {
     const userMessage = req.body.message;
-    const portfolioText = await fetchPortfolioContent();
+
+    if (!userMessage) {
+        return res.status(400).json({ error: "Message is required" });
+    }
 
     try {
-        const response = await axios.post(
-            "https://api.openai.com/v1/completions",
-            {
-                model: "text-davinci-003",
-                prompt: `You are a chatbot that answers questions about Isha's portfolio.
-                Here is the portfolio content:
-                ${portfolioText}
-                
-                Answer questions based ONLY on this data.
-                User: ${userMessage}`,
-                max_tokens: 200
-            },
-            {
-                headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` }
-            }
-        );
+        const response = await openai.chat.completions.create({
+            model: "gpt-4",
+            messages: [{ role: "user", content: userMessage }],
+            temperature: 0.7
+        });
 
-        res.json({ reply: response.data.choices[0].text.trim() });
+        if (!response.choices || response.choices.length === 0) {
+            throw new Error("Empty response from OpenAI");
+        }
+
+        res.json({ reply: response.choices[0].message.content });
     } catch (error) {
-        console.error("OpenAI API Error:", error);
-        res.json({ reply: "Sorry, I couldn't process that request." });
+        console.error("API Error:", error);
+        res.status(500).json({ reply: "Sorry, I couldn't process that request." });
     }
 });
 
-// Start the server
-app.listen(PORT, () => console.log(`Chatbot running on port ${PORT}`));
+app.listen(port, () => {
+    console.log(`Chatbot running on port ${port}`);
+});
