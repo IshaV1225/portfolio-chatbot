@@ -24,7 +24,7 @@ app.post('/chat', async (req, res) => {
 
     try {
         const response = await axios.post("https://api.openai.com/v1/chat/completions", {
-            model: "gpt-4", // Ensure this is a valid model
+            model: "gpt-4-turbo", // Valid AI model
             messages: [{ role: "user", content: userMessage }],
             temperature: 0.7
         }, {
